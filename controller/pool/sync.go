@@ -3,24 +3,17 @@ package pool
 import (
 	"context"
 
-	"log"
-
 	"github.com/pkg/errors"
 	spotcluster "github.com/shovanmaity/spotcluster/pkg/apis/spotcluster.io/v1alpha1"
+	"github.com/sirupsen/logrus"
 	k8serror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/tools/cache"
 )
 
 func (c *Controller) sync(key string) error {
-	_, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		runtime.HandleError(errors.Errorf("invalid resource key: %s", key))
-		return nil
-	}
 
-	pool, err := c.poolLister.Get(name)
+	pool, err := c.poolLister.Get(key)
 	if k8serror.IsNotFound(err) {
 		runtime.HandleError(errors.Errorf("pool '%s' has been deleted", key))
 		return nil
@@ -31,7 +24,8 @@ func (c *Controller) sync(key string) error {
 
 	clonePool := pool.DeepCopy()
 	instanceList, err := c.clientset.SpotclusterV1alpha1().
-		Instances().List(context.TODO(), metav1.ListOptions{})
+		Instances().
+		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -39,9 +33,25 @@ func (c *Controller) sync(key string) error {
 	desiredReplicas := clonePool.Spec.Replicas
 	replicas := len(instanceList.Items)
 
+	if clonePool.DeletionTimestamp != nil {
+		if replicas == 0 {
+			clonePool.Finalizers = []string{}
+			_, err := c.clientset.SpotclusterV1alpha1().
+				Pools().
+				Update(context.TODO(), clonePool, metav1.UpdateOptions{})
+			if err != nil {
+				logrus.Errorf("Error updating pool %s: %s", clonePool.GetName(), err)
+			}
+			return nil
+		}
+
+		logrus.Info("Waiting fot instances to be deleted")
+		return nil
+	}
+
 	if desiredReplicas > replicas {
-		// Create
-		log.Println("Creating new instances")
+		// If desired replicas are greater than available replicas
+		// then we need to create some new replicas.
 		labels := make(map[string]string)
 		labels["pool.spotcluster.io/name"] = clonePool.GetName()
 		labels["pool.spotcluster.io/uid"] = string(clonePool.GetUID())
@@ -59,29 +69,27 @@ func (c *Controller) sync(key string) error {
 				Status: spotcluster.InstanceStatus{},
 			}
 
-			ctx := context.TODO()
-			instanceCreated, err := c.clientset.SpotclusterV1alpha1().Instances().
-				Create(ctx, instance, metav1.CreateOptions{})
+			instanceCreated, err := c.clientset.SpotclusterV1alpha1().
+				Instances().
+				Create(context.TODO(), instance, metav1.CreateOptions{})
 			if err != nil {
-				log.Println(err)
+				logrus.Errorf("Error creating new instance: %s", err)
 			}
 
-			log.Println(instanceCreated)
+			logrus.Infof("New instance %s successfully created", instanceCreated.GetName())
 		}
 	} else if desiredReplicas < replicas {
-		// Delete
+		// If available replicas are greater than desired replicas
+		// then we need to delete some older replicas.
 		for i := desiredReplicas; i < replicas; i++ {
 			instance := instanceList.Items[i]
-
-			ctx := context.TODO()
-			err := c.clientset.SpotclusterV1alpha1().Instances().
-				Delete(ctx, instance.GetName(), metav1.DeleteOptions{})
+			err := c.clientset.SpotclusterV1alpha1().
+				Instances().
+				Delete(context.TODO(), instance.GetName(), metav1.DeleteOptions{})
 			if err != nil {
-				log.Println(err)
+				logrus.Errorf("Error deleting instance %s: %s", instance.GetName(), err)
 			}
 		}
-	} else {
-		return nil
 	}
 
 	return nil

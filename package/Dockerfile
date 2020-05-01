@@ -1,4 +1,8 @@
-FROM ubuntu:20.04
-RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY bin/spot-manager /usr/local/bin/spot-manager
+FROM alpine:3.9 as cert
+RUN apk --update add ca-certificates
+
+FROM scratch
+ENV PATH=/bin
+COPY bin/spot-manager /bin/spot-manager
+COPY --from=cert /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 CMD ["spot-manager"]

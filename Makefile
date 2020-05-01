@@ -18,5 +18,5 @@ spotmanager:
 	@GO111MODULE=on CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' -o bin/spot-manager ./app/spot-manager
 
 .PHONY: spotmanager-image
-spotmanager-image:
+spotmanager-image: spotmanager
 	@docker build -t shovan1995/spot-manager:ci -f package/Dockerfile .
