@@ -1,6 +1,9 @@
 .PHONY: codegen
 codegen:
 	./codegen/update.sh
+
+.PHONY: verify-codegen
+verify-codegen:
 	./codegen/verify.sh
 
 .PHONY: dependency
