@@ -46,8 +46,15 @@ func New() (*Controller, error) {
 	}
 
 	informerFactory := informer.NewSharedInformerFactory(clientset, 30*time.Second)
-	instanceLister := informerFactory.Spotcluster().V1alpha1().Instances().Lister()
-	instanceSynced := informerFactory.Spotcluster().V1alpha1().Instances().Informer().HasSynced
+	instanceLister := informerFactory.Spotcluster().
+		V1alpha1().
+		Instances().
+		Lister()
+	instanceSynced := informerFactory.Spotcluster().
+		V1alpha1().
+		Instances().
+		Informer().
+		HasSynced
 	workqueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "INSTANCE")
 
 	c := &Controller{
@@ -59,7 +66,10 @@ func New() (*Controller, error) {
 		workqueue:       workqueue,
 	}
 
-	c.informerFactory.Spotcluster().V1alpha1().Instances().Informer().
+	c.informerFactory.Spotcluster().
+		V1alpha1().
+		Instances().
+		Informer().
 		AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				instance, ok := obj.(*spotcluster.Instance)
@@ -76,6 +86,7 @@ func New() (*Controller, error) {
 
 				c.workqueue.Add(key)
 			},
+
 			UpdateFunc: func(oldObj, newObj interface{}) {
 				instance, ok := newObj.(*spotcluster.Instance)
 				if !ok {
@@ -91,6 +102,7 @@ func New() (*Controller, error) {
 
 				c.workqueue.Add(key)
 			},
+
 			DeleteFunc: func(obj interface{}) {
 				instance, ok := obj.(*spotcluster.Instance)
 				if !ok {
@@ -116,7 +128,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
 	c.informerFactory.Start(stopCh)
-	logrus.WithField("controller", "instance").Info("Waiting for informer caches to sync.")
+	logrus.WithField("controller", "instance").
+		Info("Waiting for informer caches to sync.")
 	if ok := cache.WaitForCacheSync(stopCh, c.instanceSynced); !ok {
 		return errors.New("failed to wait for caches to sync")
 	}
@@ -125,10 +138,12 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	for i := 0; i < worker; i++ {
 		go wait.Until(c.worker, time.Second, stopCh)
 	}
-	logrus.WithField("controller", "instance").Info("Started controller.")
+	logrus.WithField("controller", "instance").
+		Info("Started controller.")
 
 	<-stopCh
-	logrus.WithField("controller", "instance").Info("Shutting down controller.")
+	logrus.WithField("controller", "instance").
+		Info("Shutting down controller.")
 
 	return nil
 }

@@ -46,8 +46,15 @@ func New() (*Controller, error) {
 	}
 
 	informerFactory := informer.NewSharedInformerFactory(clientset, 30*time.Second)
-	poolLister := informerFactory.Spotcluster().V1alpha1().Pools().Lister()
-	poolSynced := informerFactory.Spotcluster().V1alpha1().Pools().Informer().HasSynced
+	poolLister := informerFactory.Spotcluster().
+		V1alpha1().
+		Pools().
+		Lister()
+	poolSynced := informerFactory.Spotcluster().
+		V1alpha1().
+		Pools().
+		Informer().
+		HasSynced
 	workqueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "POOL")
 
 	c := &Controller{
@@ -59,7 +66,10 @@ func New() (*Controller, error) {
 		workqueue:       workqueue,
 	}
 
-	c.informerFactory.Spotcluster().V1alpha1().Pools().Informer().
+	c.informerFactory.Spotcluster().
+		V1alpha1().
+		Pools().
+		Informer().
 		AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				pool, ok := obj.(*spotcluster.Pool)
@@ -76,6 +86,7 @@ func New() (*Controller, error) {
 
 				c.workqueue.Add(key)
 			},
+
 			UpdateFunc: func(oldObj, newObj interface{}) {
 				pool, ok := newObj.(*spotcluster.Pool)
 				if !ok {
@@ -91,6 +102,7 @@ func New() (*Controller, error) {
 
 				c.workqueue.Add(key)
 			},
+
 			DeleteFunc: func(obj interface{}) {
 				pool, ok := obj.(*spotcluster.Pool)
 				if !ok {
@@ -116,7 +128,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
 	c.informerFactory.Start(stopCh)
-	logrus.WithField("controller", "pool").Info("Waiting for informer caches to sync.")
+	logrus.WithField("controller", "pool").
+		Info("Waiting for informer caches to sync.")
 	if ok := cache.WaitForCacheSync(stopCh, c.poolSynced); !ok {
 		return errors.New("failed to wait for caches to sync")
 	}
@@ -125,10 +138,12 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	for i := 0; i < worker; i++ {
 		go wait.Until(c.worker, time.Second, stopCh)
 	}
-	logrus.WithField("controller", "pool").Info("Started controller.")
+	logrus.WithField("controller", "pool").
+		Info("Started controller.")
 
 	<-stopCh
-	logrus.WithField("controller", "pool").Info("Shutting down controller.")
+	logrus.WithField("controller", "pool").
+		Info("Shutting down controller.")
 
 	return nil
 }

@@ -1,0 +1,93 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: pools.spotcluster.io
+spec:
+  group: spotcluster.io
+  version: v1alpha1
+  scope: Cluster
+  names:
+    plural: pools
+    singular: pool
+    kind: Pool
+    shortNames:
+      - pool
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: instances.spotcluster.io
+spec:
+  group: spotcluster.io
+  version: v1alpha1
+  scope: Cluster
+  names:
+    plural: instances
+    singular: instance
+    kind: Instance
+    shortNames:
+      - instance
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spot-manager
+  namespace: spotcluster
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: spot-manager
+  namespace: spotcluster
+subjects:
+  - kind: ServiceAccount
+    name: spot-manager
+    namespace: spotcluster
+roleRef:
+  kind: ClusterRole
+  name: spot-manager
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: spot-manager
+  namespace: spotcluster
+rules:
+  - apiGroups: ["*"]
+    resources:
+      ["pools", "instances", "pools/finalizers", "instances/finalizers"]
+    verbs: ["*"]
+  - apiGroups: ["*"]
+    resources: ["nodes"]
+    verbs: ["*"]
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: spot-manager
+  namespace: spotcluster
+  labels:
+    app: spot-manager
+spec:
+  selector:
+    matchLabels:
+      app: spot-manager
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: spot-manager
+    spec:
+      serviceAccountName: spot-manager
+      containers:
+        - name: spot-manager
+          image: shovan1995/spot-manager:ci
+          volumeMounts:
+            - mountPath: /etc/spotcluster
+              name: ssh-key
+              readOnly: true
+      volumes:
+        - name: ssh-key
+          secret:
+            secretName: ssh-key
