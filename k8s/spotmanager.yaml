@@ -81,6 +81,8 @@ spec:
       labels:
         app: spot-manager
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: "true"
       serviceAccountName: spot-manager
       containers:
         - name: spot-manager
@@ -89,7 +91,13 @@ spec:
             - mountPath: /etc/spotcluster
               name: ssh-key
               readOnly: true
+            - mountPath: /etc/node-pwd/node-passwd
+              name: node-pwd
       volumes:
         - name: ssh-key
           secret:
             secretName: ssh-key
+        - name: node-pwd
+          hostPath:
+            path: /var/lib/rancher/k3s/server/cred/node-passwd
+            type: File

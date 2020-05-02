@@ -36,11 +36,13 @@ func (c *Controller) sync(key string) error {
 
 	// If deletion timestamp is set then delete that cspi
 	if cloneInstance.DeletionTimestamp != nil {
+		logrus.Infof("Deletion timestamp set for instance %s", cloneInstance.GetName())
 		return c.deleteInstance(pool, cloneInstance)
 	}
 
 	// If node is available then update the node status.
 	if cloneInstance.Spec.NodeAvailable {
+		logrus.Infof("Updating node status for instance %s", cloneInstance.GetName())
 		return c.nodeStatus(cloneInstance)
 	}
 
@@ -71,12 +73,15 @@ func (c *Controller) nodeStatus(instance *spotcluster.Instance) error {
 	// TODO if node is not ready then check the instance
 	// If instance is not present then create a new instance
 	// and provision kubernetes on that node.
-	_, err = c.clientset.SpotclusterV1alpha1().
+	gotInstance, err := c.clientset.SpotclusterV1alpha1().
 		Instances().
 		Update(context.TODO(), instance, metav1.UpdateOptions{})
 	if err != nil {
 		logrus.Errorf("Error updating instance node %s: %s", instance.GetName(), err)
+		return nil
 	}
+
+	logrus.Infof("Updated instance %s with node status", gotInstance.GetName())
 	return nil
 }
 
@@ -88,12 +93,16 @@ func (c *Controller) provisionInstance(pool *spotcluster.Pool,
 		return nil
 	}
 
-	_, err = c.clientset.SpotclusterV1alpha1().
+	gotInstance, err := c.clientset.SpotclusterV1alpha1().
 		Instances().
 		Update(context.TODO(), i, metav1.UpdateOptions{})
 	if err != nil {
 		logrus.Errorf("Error updating instance %s: %s", instance.GetName(), err)
+		return nil
 	}
+
+	logrus.WithField("operation", "create/get").
+		Infof("Updated instance %s with instance details", gotInstance.GetName())
 	return nil
 }
 
@@ -102,21 +111,38 @@ func (c *Controller) deleteInstance(pool *spotcluster.Pool,
 	i, err := digitalocean.DeleteInstance(pool, instance)
 	if err != nil {
 		logrus.Errorf("Error deleting instance: %s", err)
+		return nil
 	}
-	_, err = c.clientset.SpotclusterV1alpha1().
+
+	gotInstance, err := c.clientset.SpotclusterV1alpha1().
 		Instances().
 		Update(context.TODO(), i, metav1.UpdateOptions{})
 	if err != nil {
 		logrus.Errorf("Error updating instance %s: %s", instance.GetName(), err)
+		return nil
 	}
+
+	logrus.WithField("operation", "delete").
+		Infof("Updated instance %s with instance details", gotInstance.GetName())
 	return nil
 }
 
 func (c *Controller) provisionKubernetes(pool *spotcluster.Pool,
 	instance *spotcluster.Instance) error {
-	err := digitalocean.ProvisionKubernetes(pool, instance)
+	i, err := digitalocean.ProvisionKubernetes(pool, instance)
 	if err != nil {
 		logrus.Errorf("Error provisioning kubernetes on node %s: %s", instance.GetName(), err)
+		return nil
 	}
+
+	gotInstance, err := c.clientset.SpotclusterV1alpha1().
+		Instances().
+		Update(context.TODO(), i, metav1.UpdateOptions{})
+	if err != nil {
+		logrus.Errorf("Error updating instance %s: %s", instance.GetName(), err)
+		return nil
+	}
+
+	logrus.Infof("Successfully provisioned kubernetes on node %s", gotInstance.GetName())
 	return nil
 }
