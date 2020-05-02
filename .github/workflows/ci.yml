@@ -23,8 +23,8 @@ jobs:
       - name: Get dependencies
         run: make dependency
 
-      - name: Build spotmanager
-        run: make spotmanager
+      - name: Build binary
+        run: make binary
 
       - name: Build docker image
-        run: make spotmanager-image
+        run: make spot-manager-image

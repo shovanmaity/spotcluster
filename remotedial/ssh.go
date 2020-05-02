@@ -1,15 +1,14 @@
 package remotedial
 
 import (
-	"io"
 	"io/ioutil"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 )
 
-// NewClient ...
-func NewClient(user, remoteAddress string) (*ssh.Client, error) {
+// NewSSHClient returns a ssh client for given user and remote address
+func NewSSHClient(user, remoteAddress string) (*ssh.Client, error) {
 	key, err := ioutil.ReadFile("/etc/spotcluster/id_rsa")
 	if err != nil {
 		return nil, err
@@ -27,13 +26,4 @@ func NewClient(user, remoteAddress string) (*ssh.Client, error) {
 		Timeout:         10 * time.Minute,
 	}
 	return ssh.Dial("tcp", remoteAddress, config)
-}
-
-// NewSession ...
-func NewSession(in io.Reader, out, err io.Writer) *ssh.Session {
-	return &ssh.Session{
-		Stdin:  in,
-		Stdout: out,
-		Stderr: err,
-	}
 }

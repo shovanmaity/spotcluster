@@ -2,7 +2,8 @@ package digitalocean
 
 import (
 	"bytes"
-	"log"
+
+	"github.com/pkg/errors"
 
 	"github.com/digitalocean/godo"
 	spotcluster "github.com/shovanmaity/spotcluster/pkg/apis/spotcluster.io/v1alpha1"
@@ -10,10 +11,23 @@ import (
 	"github.com/shovanmaity/spotcluster/remotedial"
 )
 
-// ProvisionInstance ...
+// ProvisionInstance creates a new droplet if not present
+// If droplet is present then it gets the details of that droplet
 func ProvisionInstance(pool *spotcluster.Pool,
 	instance *spotcluster.Instance) (*spotcluster.Instance, error) {
+	if pool == nil {
+		return nil, errors.New("Got nil pool object")
+	}
+
+	if instance == nil {
+		return nil, errors.New("Got nil instance object")
+	}
+
 	client := godo.NewFromToken(pool.ProviderSpec.DigitalOcean.APIKey)
+	if client == nil {
+		return nil, errors.New("Got nil godo client")
+	}
+
 	config := common.InstanceConfig{
 		Name:           instance.GetName(),
 		Region:         pool.ProviderSpec.DigitalOcean.Region,
@@ -25,47 +39,75 @@ func ProvisionInstance(pool *spotcluster.Pool,
 	doc := Client{
 		Provider: client,
 	}
+
 	if !instance.Spec.InstanceAvailable {
+		// If instance is not available then create a new droplet
 		droplet, err := doc.Create(config)
 		if err != nil {
-			log.Println(err)
 			return nil, err
 		}
+
 		instance.Spec.InstanceName = droplet.Name
 		instance.Spec.RemoteAddress = droplet.ExteralIP + ":22"
+		instance.Spec.ExternalIP = droplet.ExteralIP
+		instance.Spec.InternalIP = droplet.InternalIP
 		instance.Spec.InstanceAvailable = true
 		instance.Spec.InstanceReady = droplet.IsRunning
 		instance.Finalizers = []string{"spotcluster.io/instance-protection"}
 		labels := instance.GetLabels()
 		labels["instance.spotcluster.io/id"] = droplet.ID
 	} else {
-		droplet, err := doc.Get(config, string(instance.GetUID()))
+		// If droplet is present then populate it's details.
+		// Do the same until droplet becomes ready.
+		droplet, found, err := doc.Get(config, string(instance.GetUID()))
 		if err != nil {
-			log.Println(err)
 			return nil, err
 		}
-		instance.Spec.InstanceName = droplet.Name
-		instance.Spec.RemoteAddress = droplet.ExteralIP + ":22"
-		instance.Spec.InstanceReady = droplet.IsRunning
+
+		if found {
+			instance.Spec.InstanceName = droplet.Name
+			instance.Spec.RemoteAddress = droplet.ExteralIP + ":22"
+			instance.Spec.ExternalIP = droplet.ExteralIP
+			instance.Spec.InternalIP = droplet.InternalIP
+			instance.Spec.InstanceReady = droplet.IsRunning
+		} else {
+			instance.Spec.InstanceAvailable = false
+			instance.Spec.InstanceReady = false
+			instance.Spec.NodeAvailable = false
+			instance.Spec.NodeReady = false
+			instance.Spec.InstanceName = ""
+			instance.Spec.RemoteAddress = ""
+			instance.Spec.ExternalIP = ""
+			instance.Spec.InternalIP = ""
+		}
 	}
 	return instance, nil
 }
 
-// ProvisionKubernetes ...
+// ProvisionKubernetes does a ssh into the droplet and executes some
+// commands to provision a kubernetes worker.
 func ProvisionKubernetes(pool *spotcluster.Pool,
 	instance *spotcluster.Instance) error {
-	c, err := remotedial.NewClient("root", instance.Spec.RemoteAddress)
+	if pool == nil {
+		return errors.New("Got nil pool object")
+	}
+
+	if instance == nil {
+		return errors.New("Got nil instance object")
+	}
+
+	c, err := remotedial.NewSSHClient("root", instance.Spec.RemoteAddress)
 	if err != nil {
-		log.Println(err)
 		return err
 	}
+
 	defer c.Close()
 	var stdoutBuf bytes.Buffer
 	session, err := c.NewSession()
 	if err != nil {
-		log.Println(err)
 		return err
 	}
+
 	defer session.Close()
 	session.Stdout = &stdoutBuf
 	session.Run("curl -sfL https://get.k3s.io | K3S_URL=" +
@@ -73,10 +115,22 @@ func ProvisionKubernetes(pool *spotcluster.Pool,
 	return nil
 }
 
-// DeleteInstance ...
+// DeleteInstance delete for a given tag
 func DeleteInstance(pool *spotcluster.Pool,
 	instance *spotcluster.Instance) (*spotcluster.Instance, error) {
+	if pool == nil {
+		return nil, errors.New("Got nil pool object")
+	}
+
+	if instance == nil {
+		return nil, errors.New("Got nil instance object")
+	}
+
 	client := godo.NewFromToken(pool.ProviderSpec.DigitalOcean.APIKey)
+	if client == nil {
+		return nil, errors.New("Got nil godo client")
+	}
+
 	config := common.InstanceConfig{
 		Name:           instance.GetName(),
 		Region:         pool.ProviderSpec.DigitalOcean.Region,
@@ -89,11 +143,11 @@ func DeleteInstance(pool *spotcluster.Pool,
 		Provider: client,
 	}
 
-	_, err := doc.Delete(config, string(instance.GetUID()))
+	err := doc.Delete(config, string(instance.GetUID()))
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
+
 	instance.Spec.InstanceAvailable = false
 	instance.Finalizers = []string{}
 	return instance, nil
