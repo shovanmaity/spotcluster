@@ -24,11 +24,12 @@ type InstanceSpec struct {
 	ExternalIP        string `json:"externalIP,omitempty"`
 	Provider          string `json:"provider,omitempty"`
 	NodeName          string `json:"nodeName,omitempty"`
+	NodePassword      string `json:"nodePassword,omitempty"`
 	InstanceName      string `json:"instanceName,omitempty"`
-	InstanceAvailable bool   `json:"instanceAvailable,omitempty"`
-	NodeAvailable     bool   `json:"nodeAvailable,omitempty"`
-	InstanceReady     bool   `json:"instanceReady,omitempty"`
-	NodeReady         bool   `json:"nodeReady,omitempty"`
+	InstanceAvailable bool   `json:"instanceAvailable"`
+	NodeAvailable     bool   `json:"nodeAvailable"`
+	InstanceReady     bool   `json:"instanceReady"`
+	NodeReady         bool   `json:"nodeReady"`
 }
 
 type InstanceStatus struct {

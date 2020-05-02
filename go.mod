@@ -3,6 +3,7 @@ module github.com/shovanmaity/spotcluster
 go 1.13
 
 require (
+	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/digitalocean/godo v1.35.1
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect

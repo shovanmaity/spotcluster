@@ -2,6 +2,7 @@ package digitalocean
 
 import (
 	"bytes"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -87,32 +88,55 @@ func ProvisionInstance(pool *spotcluster.Pool,
 // ProvisionKubernetes does a ssh into the droplet and executes some
 // commands to provision a kubernetes worker.
 func ProvisionKubernetes(pool *spotcluster.Pool,
-	instance *spotcluster.Instance) error {
+	instance *spotcluster.Instance) (*spotcluster.Instance, error) {
 	if pool == nil {
-		return errors.New("Got nil pool object")
+		return nil, errors.New("Got nil pool object")
 	}
 
 	if instance == nil {
-		return errors.New("Got nil instance object")
+		return nil, errors.New("Got nil instance object")
 	}
 
 	c, err := remotedial.NewSSHClient("root", instance.Spec.RemoteAddress)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer c.Close()
-	var stdoutBuf bytes.Buffer
-	session, err := c.NewSession()
+
+	// Provision worker node
+	err = func() error {
+		session, err := c.NewSession()
+		if err != nil {
+			return err
+		}
+
+		defer session.Close()
+
+		session.Run("curl -sfL https://get.k3s.io | K3S_URL=" +
+			pool.Spec.MasterURL + " K3S_TOKEN=" + pool.Spec.NodeToken + " sh -")
+		return nil
+	}()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	defer session.Close()
-	session.Stdout = &stdoutBuf
-	session.Run("curl -sfL https://get.k3s.io | K3S_URL=" +
-		pool.Spec.MasterURL + " K3S_TOKEN=" + pool.Spec.NodeToken + " sh -")
-	return nil
+	// Read node password
+	return func() (*spotcluster.Instance, error) {
+		session, err := c.NewSession()
+		if err != nil {
+			return nil, err
+		}
+
+		defer session.Close()
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		session.Stdout = &stdout
+		session.Stderr = &stderr
+		session.Run("cat /etc/rancher/node/password")
+		instance.Spec.NodePassword = strings.TrimSpace(stdout.String())
+		return instance, nil
+	}()
 }
 
 // DeleteInstance delete for a given tag
