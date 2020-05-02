@@ -55,8 +55,10 @@ metadata:
   namespace: spotcluster
 rules:
   - apiGroups: ["*"]
-    resources:
-      ["pools", "instances", "pools/finalizers", "instances/finalizers"]
+    resources: ["pools", "pools/finalizers"]
+    verbs: ["*"]
+  - apiGroups: ["*"]
+    resources: ["instances", "instances/finalizers"]
     verbs: ["*"]
   - apiGroups: ["*"]
     resources: ["nodes"]
@@ -82,7 +84,7 @@ spec:
       serviceAccountName: spot-manager
       containers:
         - name: spot-manager
-          image: shovan1995/spot-manager:ci
+          image: shovan1995/spot-manager:latest
           volumeMounts:
             - mountPath: /etc/spotcluster
               name: ssh-key

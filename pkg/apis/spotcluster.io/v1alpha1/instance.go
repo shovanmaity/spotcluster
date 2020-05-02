@@ -20,6 +20,8 @@ type Instance struct {
 
 type InstanceSpec struct {
 	RemoteAddress     string `json:"remoteAddress,omitempty"`
+	InternalIP        string `json:"internalIP,omitempty"`
+	ExternalIP        string `json:"externalIP,omitempty"`
 	Provider          string `json:"provider,omitempty"`
 	NodeName          string `json:"nodeName,omitempty"`
 	InstanceName      string `json:"instanceName,omitempty"`

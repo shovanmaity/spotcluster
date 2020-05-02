@@ -8,6 +8,7 @@ require (
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.5.0
+	github.com/urfave/cli/v2 v2.2.0
 	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect

@@ -3,21 +3,19 @@ package digitalocean
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/digitalocean/godo"
 	"github.com/pkg/errors"
 	"github.com/shovanmaity/spotcluster/provider/common"
 )
 
-// Client ...
+// Client is a wrapper over godo client
 type Client struct {
 	Provider *godo.Client
 }
 
-// Create ...
+// Create creates new droplet
 func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, error) {
-	ctx := context.TODO()
 	request := &godo.DropletCreateRequest{
 		Name:   config.Name,
 		Region: config.Region,
@@ -33,22 +31,25 @@ func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, e
 		Tags: config.Tags,
 	}
 
-	droplet, _, err := c.Provider.Droplets.Create(ctx, request)
+	droplet, _, err := c.Provider.Droplets.Create(context.TODO(), request)
 	if err != nil {
 		return nil, err
 	}
+
 	return &common.InstanceConfig{
 		ID:     fmt.Sprintf("%d", droplet.ID),
 		Name:   droplet.Name,
 		Region: droplet.Region.Slug,
 		Image:  droplet.Image.Slug,
 		Tags:   droplet.Tags,
+
 		IsRunning: func() bool {
 			if droplet.Status == "active" {
 				return true
 			}
 			return false
 		}(),
+
 		InternalIP: func() string {
 			for _, v4 := range droplet.Networks.V4 {
 				if v4.Type == "private" {
@@ -57,6 +58,7 @@ func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, e
 			}
 			return ""
 		}(),
+
 		ExteralIP: func() string {
 			for _, v4 := range droplet.Networks.V4 {
 				if v4.Type == "public" {
@@ -68,31 +70,42 @@ func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, e
 	}, nil
 }
 
-// Get ...
-func (c *Client) Get(config common.InstanceConfig, tag string) (*common.InstanceConfig, error) {
-	ctx := context.TODO()
+// Get returns droplet details if droplet found for a given tag
+func (c *Client) Get(config common.InstanceConfig, tag string) (*common.InstanceConfig, bool, error) {
 	list := []godo.Droplet{}
 	opt := &godo.ListOptions{}
+
 	for {
-		droplets, resp, err := c.Provider.Droplets.ListByTag(ctx, tag, opt)
+		droplets, resp, err := c.Provider.Droplets.ListByTag(context.TODO(), tag, opt)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
+
 		for _, d := range droplets {
 			list = append(list, d)
 		}
+
 		if resp.Links == nil || resp.Links.IsLastPage() {
 			break
 		}
+
 		page, err := resp.Links.CurrentPage()
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
+
 		opt.Page = page + 1
 	}
-	if len(list) != 1 {
-		return nil, errors.New("")
+
+	if len(list) == 0 {
+		return nil, false, nil
 	}
+
+	if len(list) != 1 {
+		return nil, false,
+			errors.Errorf("Got %d droplets for the given tag %s", len(list), tag)
+	}
+
 	return &common.InstanceConfig{
 		Name:   list[0].Name,
 		Region: list[0].Region.Slug,
@@ -104,6 +117,7 @@ func (c *Client) Get(config common.InstanceConfig, tag string) (*common.Instance
 			}
 			return false
 		}(),
+
 		InternalIP: func() string {
 			for _, v4 := range list[0].Networks.V4 {
 				if v4.Type == "private" {
@@ -112,6 +126,7 @@ func (c *Client) Get(config common.InstanceConfig, tag string) (*common.Instance
 			}
 			return ""
 		}(),
+
 		ExteralIP: func() string {
 			for _, v4 := range list[0].Networks.V4 {
 				if v4.Type == "public" {
@@ -120,40 +135,48 @@ func (c *Client) Get(config common.InstanceConfig, tag string) (*common.Instance
 			}
 			return ""
 		}(),
-	}, nil
+	}, true, nil
 }
 
-// Delete ...
-func (c *Client) Delete(config common.InstanceConfig, tag string) (bool, error) {
-	ctx := context.TODO()
+// Delete deletes a droplet if found
+func (c *Client) Delete(config common.InstanceConfig, tag string) error {
 	list := []godo.Droplet{}
 	opt := &godo.ListOptions{}
+
 	for {
-		droplets, resp, err := c.Provider.Droplets.ListByTag(ctx, tag, opt)
+		droplets, resp, err := c.Provider.Droplets.ListByTag(context.TODO(), tag, opt)
 		if err != nil {
-			return false, err
+			return err
 		}
+
 		for _, d := range droplets {
 			list = append(list, d)
 		}
+
 		if resp.Links == nil || resp.Links.IsLastPage() {
 			break
 		}
+
 		page, err := resp.Links.CurrentPage()
 		if err != nil {
-			return false, err
+			return err
 		}
+
 		opt.Page = page + 1
 	}
+
+	if len(list) == 0 {
+		return nil
+	}
+
 	if len(list) != 1 {
-		return false, errors.New("")
+		return errors.Errorf("Got %d droplets for the given tag %s", len(list), tag)
 	}
-	log.Println("-------------------")
-	log.Println(list)
-	log.Println("-------------------")
-	_, err := c.Provider.Droplets.Delete(ctx, list[0].ID)
+
+	_, err := c.Provider.Droplets.Delete(context.TODO(), list[0].ID)
 	if err != nil {
-		return false, err
+		return err
 	}
-	return true, nil
+
+	return nil
 }
