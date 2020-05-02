@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	controller "github.com/shovanmaity/spotcluster/controller/common"
 	spotcluster "github.com/shovanmaity/spotcluster/pkg/apis/spotcluster.io/v1alpha1"
 	"github.com/shovanmaity/spotcluster/provider/digitalocean"
 	"github.com/sirupsen/logrus"
@@ -25,7 +26,7 @@ func (c *Controller) sync(key string) error {
 
 	cloneInstance := instance.DeepCopy()
 	labels := cloneInstance.GetLabels()
-	poolName := labels["pool.spotcluster.io/name"]
+	poolName := labels[controller.LabelClusterName]
 
 	pool, err := c.clientset.SpotclusterV1alpha1().
 		Pools().
@@ -52,10 +53,8 @@ func (c *Controller) sync(key string) error {
 		return c.provisionInstance(pool, cloneInstance)
 	}
 
-	// At last provision kubernetes on that instance
-	c.provisionKubernetes(pool, cloneInstance)
-
-	return c.nodeStatus(cloneInstance)
+	// At last provision worker on that instance
+	return c.provisionWorker(pool, cloneInstance)
 }
 
 func (c *Controller) nodeStatus(instance *spotcluster.Instance) error {
@@ -72,7 +71,7 @@ func (c *Controller) nodeStatus(instance *spotcluster.Instance) error {
 	instance.Spec.NodeReady = true
 	// TODO if node is not ready then check the instance
 	// If instance is not present then create a new instance
-	// and provision kubernetes on that node.
+	// and provision worker on that node.
 	gotInstance, err := c.clientset.SpotclusterV1alpha1().
 		Instances().
 		Update(context.TODO(), instance, metav1.UpdateOptions{})
@@ -127,11 +126,11 @@ func (c *Controller) deleteInstance(pool *spotcluster.Pool,
 	return nil
 }
 
-func (c *Controller) provisionKubernetes(pool *spotcluster.Pool,
+func (c *Controller) provisionWorker(pool *spotcluster.Pool,
 	instance *spotcluster.Instance) error {
-	i, err := digitalocean.ProvisionKubernetes(pool, instance)
+	i, err := digitalocean.ProvisionWorker(pool, instance)
 	if err != nil {
-		logrus.Errorf("Error provisioning kubernetes on node %s: %s", instance.GetName(), err)
+		logrus.Errorf("Error provisioning worker on node %s: %s", instance.GetName(), err)
 		return nil
 	}
 
@@ -143,6 +142,6 @@ func (c *Controller) provisionKubernetes(pool *spotcluster.Pool,
 		return nil
 	}
 
-	logrus.Infof("Successfully provisioned kubernetes on node %s", gotInstance.GetName())
+	logrus.Infof("Successfully provisioned worker on node %s", gotInstance.GetName())
 	return nil
 }

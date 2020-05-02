@@ -6,7 +6,7 @@ import (
 
 	"github.com/digitalocean/godo"
 	"github.com/pkg/errors"
-	"github.com/shovanmaity/spotcluster/provider/common"
+	provider "github.com/shovanmaity/spotcluster/provider/common"
 )
 
 // Client is a wrapper over godo client
@@ -15,7 +15,7 @@ type Client struct {
 }
 
 // Create creates new droplet
-func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, error) {
+func (c *Client) Create(config provider.InstanceConfig) (*provider.InstanceConfig, error) {
 	request := &godo.DropletCreateRequest{
 		Name:   config.Name,
 		Region: config.Region,
@@ -36,7 +36,7 @@ func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, e
 		return nil, err
 	}
 
-	return &common.InstanceConfig{
+	return &provider.InstanceConfig{
 		ID:     fmt.Sprintf("%d", droplet.ID),
 		Name:   droplet.Name,
 		Region: droplet.Region.Slug,
@@ -44,7 +44,7 @@ func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, e
 		Tags:   droplet.Tags,
 
 		IsRunning: func() bool {
-			if droplet.Status == "active" {
+			if droplet.Status == provider.DropletActive {
 				return true
 			}
 			return false
@@ -52,7 +52,7 @@ func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, e
 
 		InternalIP: func() string {
 			for _, v4 := range droplet.Networks.V4 {
-				if v4.Type == "private" {
+				if v4.Type == provider.PrivateIPType {
 					return v4.IPAddress
 				}
 			}
@@ -61,7 +61,7 @@ func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, e
 
 		ExteralIP: func() string {
 			for _, v4 := range droplet.Networks.V4 {
-				if v4.Type == "public" {
+				if v4.Type == provider.PublicIPType {
 					return v4.IPAddress
 				}
 			}
@@ -71,7 +71,7 @@ func (c *Client) Create(config common.InstanceConfig) (*common.InstanceConfig, e
 }
 
 // Get returns droplet details if droplet found for a given tag
-func (c *Client) Get(config common.InstanceConfig, tag string) (*common.InstanceConfig, bool, error) {
+func (c *Client) Get(tag string) (*provider.InstanceConfig, bool, error) {
 	list := []godo.Droplet{}
 	opt := &godo.ListOptions{}
 
@@ -106,13 +106,13 @@ func (c *Client) Get(config common.InstanceConfig, tag string) (*common.Instance
 			errors.Errorf("Got %d droplets for the given tag %s", len(list), tag)
 	}
 
-	return &common.InstanceConfig{
+	return &provider.InstanceConfig{
 		Name:   list[0].Name,
 		Region: list[0].Region.Slug,
 		Image:  list[0].Image.Slug,
 		Tags:   list[0].Tags,
 		IsRunning: func() bool {
-			if list[0].Status == "active" {
+			if list[0].Status == provider.DropletActive {
 				return true
 			}
 			return false
@@ -120,7 +120,7 @@ func (c *Client) Get(config common.InstanceConfig, tag string) (*common.Instance
 
 		InternalIP: func() string {
 			for _, v4 := range list[0].Networks.V4 {
-				if v4.Type == "private" {
+				if v4.Type == provider.PrivateIPType {
 					return v4.IPAddress
 				}
 			}
@@ -129,7 +129,7 @@ func (c *Client) Get(config common.InstanceConfig, tag string) (*common.Instance
 
 		ExteralIP: func() string {
 			for _, v4 := range list[0].Networks.V4 {
-				if v4.Type == "public" {
+				if v4.Type == provider.PublicIPType {
 					return v4.IPAddress
 				}
 			}
@@ -139,7 +139,7 @@ func (c *Client) Get(config common.InstanceConfig, tag string) (*common.Instance
 }
 
 // Delete deletes a droplet if found
-func (c *Client) Delete(config common.InstanceConfig, tag string) error {
+func (c *Client) Delete(tag string) error {
 	list := []godo.Droplet{}
 	opt := &godo.ListOptions{}
 
