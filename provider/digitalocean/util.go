@@ -22,17 +22,18 @@ const (
 // If droplet is present then it gets the details of that droplet
 func ProvisionInstance(pool *spotcluster.Pool,
 	instance *spotcluster.Instance) (*spotcluster.Instance, error) {
+
 	if pool == nil {
-		return nil, errors.New("Got nil pool object")
+		return nil, errors.New("got nil pool object")
 	}
 
 	if instance == nil {
-		return nil, errors.New("Got nil instance object")
+		return nil, errors.New("got nil instance object")
 	}
 
 	client := godo.NewFromToken(pool.ProviderSpec.DigitalOcean.APIKey)
 	if client == nil {
-		return nil, errors.New("Got nil godo client")
+		return nil, errors.New("got nil godo client")
 	}
 
 	doc := Client{
@@ -47,16 +48,7 @@ func ProvisionInstance(pool *spotcluster.Pool,
 	}
 
 	if found {
-		instance.Spec.InstanceName = droplet.Name
-		instance.Spec.RemoteAddress = func() string {
-			if droplet.ExteralIP != "" {
-				return droplet.ExteralIP + ":22"
-			}
-			return ""
-		}()
-		instance.Spec.ExternalIP = droplet.ExteralIP
-		instance.Spec.InternalIP = droplet.InternalIP
-		instance.Spec.InstanceReady = droplet.IsRunning
+		populateInstance(instance, *droplet)
 	} else {
 		config := provider.InstanceConfig{
 			Name:           instance.GetName(),
@@ -70,22 +62,7 @@ func ProvisionInstance(pool *spotcluster.Pool,
 		if err != nil {
 			return nil, err
 		}
-
-		instance.Spec.InstanceName = droplet.Name
-		instance.Spec.RemoteAddress = func() string {
-			if droplet.ExteralIP != "" {
-				return droplet.ExteralIP + ":22"
-			}
-			return ""
-		}()
-		instance.Spec.ExternalIP = droplet.ExteralIP
-		instance.Spec.InternalIP = droplet.InternalIP
-		instance.Spec.InstanceAvailable = true
-		instance.Spec.InstanceReady = droplet.IsRunning
-		instance.Finalizers = func() []string {
-			return []string{controller.InstanceProtectionFinalizer}
-		}()
-		instance.Labels[controller.LabelInstanceID] = droplet.ID
+		populateInstance(instance, *droplet)
 	}
 	return instance, nil
 }
@@ -95,11 +72,11 @@ func ProvisionInstance(pool *spotcluster.Pool,
 func ProvisionWorker(pool *spotcluster.Pool,
 	instance *spotcluster.Instance) (*spotcluster.Instance, error) {
 	if pool == nil {
-		return nil, errors.New("Got nil pool object")
+		return nil, errors.New("got nil pool object")
 	}
 
 	if instance == nil {
-		return nil, errors.New("Got nil instance object")
+		return nil, errors.New("got nil instance object")
 	}
 
 	c, err := remotedial.NewSSHClient(provider.DoRootUser, instance.Spec.RemoteAddress)
@@ -146,33 +123,46 @@ func ProvisionWorker(pool *spotcluster.Pool,
 }
 
 // DeleteInstance delete for a given tag
-func DeleteInstance(pool *spotcluster.Pool,
-	instance *spotcluster.Instance) (*spotcluster.Instance, error) {
+func DeleteInstance(instance *spotcluster.Instance,
+	pool *spotcluster.Pool) error {
+
 	if pool == nil {
-		return nil, errors.New("Got nil pool object")
+		return errors.New("got nil pool object")
 	}
 
 	if instance == nil {
-		return nil, errors.New("Got nil instance object")
+		return errors.New("got nil instance object")
 	}
 
 	client := godo.NewFromToken(pool.ProviderSpec.DigitalOcean.APIKey)
 	if client == nil {
-		return nil, errors.New("Got nil godo client")
+		return errors.New("got nil godo client")
 	}
 
 	doc := Client{
 		Provider: client,
 	}
 
-	err := doc.Delete(string(instance.GetUID()))
-	if err != nil {
-		return nil, err
-	}
+	return doc.Delete(string(instance.GetUID()))
+}
 
-	instance.Spec.InstanceAvailable = false
-	instance.Finalizers = func() []string {
-		return []string{}
+// populateInstance populates instance details for a given droplet
+func populateInstance(instance *spotcluster.Instance,
+	droplet provider.InstanceConfig) {
+	instance.Spec.InstanceName = droplet.Name
+	instance.Spec.RemoteAddress = func() string {
+		if droplet.ExteralIP != "" {
+			return droplet.ExteralIP + ":22"
+		}
+		return ""
 	}()
-	return instance, nil
+	instance.Spec.ExternalIP = droplet.ExteralIP
+	instance.Spec.InternalIP = droplet.InternalIP
+	instance.Spec.InstanceAvailable = true
+	instance.Spec.InstanceReady = droplet.IsRunning
+	instance.Spec.NodeAvailable = false
+	instance.Finalizers = func() []string {
+		return []string{controller.InstanceProtectionFinalizer}
+	}()
+	instance.Labels[controller.LabelInstanceID] = droplet.ID
 }

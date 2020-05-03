@@ -134,7 +134,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		return errors.New("failed to wait for caches to sync")
 	}
 
-	worker := 2
+	worker := 1
 	for i := 0; i < worker; i++ {
 		go wait.Until(c.worker, time.Second, stopCh)
 	}
