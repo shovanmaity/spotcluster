@@ -80,9 +80,7 @@ func replacePassword(nodePasswordMap map[string]string) error {
 			if err != nil {
 				return err
 			}
-			// TODO remove this restart
-			logrus.Infof("Successfully replaced password file. Restarting ...")
-			os.Exit(0)
+			logrus.Infof("Successfully replaced password file.")
 			return nil
 		}()
 

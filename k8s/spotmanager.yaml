@@ -93,6 +93,9 @@ spec:
               readOnly: true
             - mountPath: /etc/node-pwd/node-passwd
               name: node-pwd
+              mountPropagation: Bidirectional
+          securityContext:
+            privileged: true
       volumes:
         - name: ssh-key
           secret:
